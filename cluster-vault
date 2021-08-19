@@ -1,0 +1,37 @@
+export VAULT_ADDR="https://vault-cluster.vault.1dae920c-4275-430a-8aeb-f250ba7e4f0c.aws.hashicorp.cloud:8200"; export VAULT_NAMESPACE="admin"
+
+export VAULT_TOKEN=s.yqe8jb0HwKkH7LCbNxh7Jhv0
+
+cat > values.yaml << EOF
+injector:
+   enabled: true
+   externalVaultAddr: "${VAULT_ADDR}"
+EOF
+
+helm install vault -f values.yaml hashicorp/vault --version "0.10.0"
+
+vault auth enable kubernetes
+
+
+vault write auth/kubernetes/role/app-role \
+   bound_service_account_names=app-secret \
+   bound_service_account_namespaces=roboot \
+   policies=catalogue-policy \
+   ttl=10h
+
+
+cat > catalogue-policy.hcl << EOF
+path "secret/catalogue-secret/*" {
+  capabilities = ["read"]
+}
+EOF
+
+vault policy write catalogue-policy catalogue-policy.hcl
+
+vault secrets enable -path=secret/ kv
+
+
+vault kv put secret/catalogue-secret/catalogue MONGO_URL=mongodb://root:admin12345@docdb-2021-07-13-13-03-21.cnbwakbdzeez.us-east-2.docdb.amazonaws.com:27017/catalogue?ssl=true&ssl_ca_certs=rds-combined-ca-bundle.pem&retryWrites=false
+
+
+cat /vault/secrets/catalogue
